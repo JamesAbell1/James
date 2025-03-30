@@ -210,14 +210,30 @@ const sendLeadToReddit = async (hashedEmail, event, retryCount = 0) => {
   }
 };
 
+// Utility function to create response with CORS headers
+const createResponse = (statusCode, body) => {
+  return {
+    statusCode,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  };
+};
+
 // Main handler function
 exports.handler = async (event, context) => {
+  // Handle OPTIONS request for CORS
+  if (event.httpMethod === 'OPTIONS') {
+    return createResponse(200, {});
+  }
+
   // Validate request method
   if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
+    return createResponse(405, { error: 'Method not allowed' });
   }
 
   try {
@@ -235,14 +251,11 @@ exports.handler = async (event, context) => {
         sendPageViewToReddit(event)
       ]);
 
-      return {
-        statusCode: 200,
-        body: JSON.stringify({
-          message: 'Page view events sent successfully',
-          facebook: facebookResult,
-          reddit: redditResult
-        })
-      };
+      return createResponse(200, {
+        message: 'Page view events sent successfully',
+        facebook: facebookResult,
+        reddit: redditResult
+      });
     }
 
     // Handle lead events
@@ -252,10 +265,7 @@ exports.handler = async (event, context) => {
           error: 'Invalid email format',
           email
         });
-        return {
-          statusCode: 400,
-          body: JSON.stringify({ error: 'Invalid email format' })
-        };
+        return createResponse(400, { error: 'Invalid email format' });
       }
 
       // Hash the email
@@ -270,22 +280,16 @@ exports.handler = async (event, context) => {
         sendLeadToReddit(hashedEmail, event)
       ]);
 
-      return {
-        statusCode: 200,
-        body: JSON.stringify({
-          message: 'Lead events sent successfully',
-          facebook: facebookResult,
-          reddit: redditResult
-        })
-      };
+      return createResponse(200, {
+        message: 'Lead events sent successfully',
+        facebook: facebookResult,
+        reddit: redditResult
+      });
     }
 
     // Invalid event type
     logEvent('invalid_event_type', { event_type });
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ error: 'Invalid event type' })
-    };
+    return createResponse(400, { error: 'Invalid event type' });
 
   } catch (error) {
     logEvent('handler_error', {
@@ -293,12 +297,9 @@ exports.handler = async (event, context) => {
       stack: error.stack
     });
 
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        error: 'Internal server error',
-        message: error.message
-      })
-    };
+    return createResponse(500, {
+      error: 'Internal server error',
+      message: error.message
+    });
   }
 }; 

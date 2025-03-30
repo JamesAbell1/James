@@ -11,6 +11,7 @@
             margin: 0 auto;
             padding: 2rem;
             line-height: 1.6;
+            color: #333;
         }
         .container {
             background: #f5f5f5;
@@ -24,26 +25,202 @@
             border-radius: 4px;
             font-size: 0.9em;
         }
+        pre {
+            background: #2d2d2d;
+            color: #fff;
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .test-form {
+            background: #fff;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+        input, select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        button {
+            background: #0070f3;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        button:hover {
+            background: #0051cc;
+        }
+        #response {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 4px;
+            display: none;
+        }
+        .success {
+            background: #e6ffe6;
+            border: 1px solid #b3ffb3;
+        }
+        .error {
+            background: #ffe6e6;
+            border: 1px solid #ffb3b3;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 1rem;
+            gap: 1rem;
+        }
+        .tab {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            border-radius: 4px;
+            background: #e0e0e0;
+        }
+        .tab.active {
+            background: #0070f3;
+            color: white;
+        }
     </style>
 </head>
 <body>
     <h1>VerifyPay API</h1>
+    
     <div class="container">
         <h2>API Endpoints</h2>
         <p>The following serverless function endpoints are available:</p>
         <ul>
             <li><code>/.netlify/functions/process-email</code> - Handles email processing and event tracking</li>
         </ul>
-        <h3>Example Usage:</h3>
-        <code>
-            POST /.netlify/functions/process-email<br>
-            Content-Type: application/json<br>
-            <br>
-            {<br>
-            &nbsp;&nbsp;"event_type": "lead",<br>
-            &nbsp;&nbsp;"email": "user@example.com"<br>
-            }
-        </code>
+
+        <h2>Event Types</h2>
+        <h3>1. Page View Event</h3>
+        <pre>
+POST /.netlify/functions/process-email
+Content-Type: application/json
+
+{
+    "event_type": "pageview"
+}</pre>
+
+        <h3>2. Lead Event</h3>
+        <pre>
+POST /.netlify/functions/process-email
+Content-Type: application/json
+
+{
+    "event_type": "lead",
+    "email": "user@example.com"
+}</pre>
+
+        <h2>Response Format</h2>
+        <h3>Success Response</h3>
+        <pre>
+{
+    "message": "Events sent successfully",
+    "facebook": { ... },
+    "reddit": { ... }
+}</pre>
+
+        <h3>Error Response</h3>
+        <pre>
+{
+    "error": "Error message",
+    "message": "Detailed error description"
+}</pre>
+
+        <h2>Test the API</h2>
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('pageview')">Page View</div>
+            <div class="tab" onclick="switchTab('lead')">Lead</div>
+        </div>
+        <div class="test-form">
+            <form id="apiForm">
+                <div class="form-group">
+                    <label for="eventType">Event Type:</label>
+                    <select id="eventType" name="eventType">
+                        <option value="pageview">Page View</option>
+                        <option value="lead">Lead</option>
+                    </select>
+                </div>
+                <div class="form-group" id="emailGroup" style="display: none;">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" name="email" placeholder="user@example.com">
+                </div>
+                <button type="submit">Send Request</button>
+            </form>
+            <div id="response"></div>
+        </div>
     </div>
+
+    <script>
+        function switchTab(type) {
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            document.getElementById('eventType').value = type;
+            document.getElementById('emailGroup').style.display = type === 'lead' ? 'block' : 'none';
+        }
+
+        document.getElementById('eventType').addEventListener('change', function() {
+            document.getElementById('emailGroup').style.display = this.value === 'lead' ? 'block' : 'none';
+        });
+
+        document.getElementById('apiForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const response = document.getElementById('response');
+            response.style.display = 'block';
+            
+            try {
+                const eventType = document.getElementById('eventType').value;
+                const email = document.getElementById('email').value;
+                
+                const payload = {
+                    event_type: eventType
+                };
+                
+                if (eventType === 'lead') {
+                    payload.email = email;
+                }
+
+                response.innerHTML = 'Sending request...';
+                response.className = '';
+                
+                const result = await fetch('/.netlify/functions/process-email', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await result.json();
+                
+                if (result.ok) {
+                    response.className = 'success';
+                    response.innerHTML = '<strong>Success!</strong><br>Response: ' + JSON.stringify(data, null, 2);
+                } else {
+                    throw new Error(data.error || 'Request failed');
+                }
+            } catch (error) {
+                response.className = 'error';
+                response.innerHTML = '<strong>Error:</strong><br>' + error.message;
+            }
+        });
+    </script>
 </body>
 </html> 
