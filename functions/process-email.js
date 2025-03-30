@@ -241,21 +241,38 @@ exports.handler = async (event, context) => {
     const body = JSON.parse(event.body);
     const { email, event_type } = body;
 
+    // Log the incoming request
+    logEvent('incoming_request', {
+      event_type,
+      email: email ? 'REDACTED' : undefined,
+      headers: event.headers
+    });
+
     // Handle page view events
     if (event_type === 'pageview') {
       logEvent('pageview_request', { event_type });
       
-      // Send page view events in parallel
-      const [facebookResult, redditResult] = await Promise.all([
-        sendPageViewToFacebook(event),
-        sendPageViewToReddit(event)
-      ]);
+      try {
+        // Send page view events in parallel
+        const [facebookResult, redditResult] = await Promise.all([
+          sendPageViewToFacebook(event),
+          sendPageViewToReddit(event)
+        ]);
 
-      return createResponse(200, {
-        message: 'Page view events sent successfully',
-        facebook: facebookResult,
-        reddit: redditResult
-      });
+        return createResponse(200, {
+          message: 'Page view events sent successfully',
+          facebook: facebookResult,
+          reddit: redditResult
+        });
+      } catch (error) {
+        logEvent('pageview_error', {
+          error: error.message,
+          stack: error.stack,
+          facebook_error: error.response?.data,
+          reddit_error: error.response?.data
+        });
+        throw error;
+      }
     }
 
     // Handle lead events
@@ -263,43 +280,61 @@ exports.handler = async (event, context) => {
       if (!email || !email.includes('@')) {
         logEvent('validation_error', {
           error: 'Invalid email format',
-          email
+          email: 'REDACTED'
         });
-        return createResponse(400, { error: 'Invalid email format' });
+        return createResponse(400, { 
+          error: 'Invalid email format',
+          details: 'Email must be a valid email address'
+        });
       }
 
-      // Hash the email
-      const hashedEmail = hashEmail(email);
-      logEvent('email_processed', {
-        email_hash: hashedEmail
-      });
+      try {
+        // Hash the email
+        const hashedEmail = hashEmail(email);
+        logEvent('email_processed', {
+          email_hash: hashedEmail
+        });
 
-      // Send lead events in parallel
-      const [facebookResult, redditResult] = await Promise.all([
-        sendLeadToFacebook(hashedEmail, event),
-        sendLeadToReddit(hashedEmail, event)
-      ]);
+        // Send lead events in parallel
+        const [facebookResult, redditResult] = await Promise.all([
+          sendLeadToFacebook(hashedEmail, event),
+          sendLeadToReddit(hashedEmail, event)
+        ]);
 
-      return createResponse(200, {
-        message: 'Lead events sent successfully',
-        facebook: facebookResult,
-        reddit: redditResult
-      });
+        return createResponse(200, {
+          message: 'Lead events sent successfully',
+          facebook: facebookResult,
+          reddit: redditResult
+        });
+      } catch (error) {
+        logEvent('lead_error', {
+          error: error.message,
+          stack: error.stack,
+          facebook_error: error.response?.data,
+          reddit_error: error.response?.data
+        });
+        throw error;
+      }
     }
 
     // Invalid event type
     logEvent('invalid_event_type', { event_type });
-    return createResponse(400, { error: 'Invalid event type' });
+    return createResponse(400, { 
+      error: 'Invalid event type',
+      details: 'Event type must be either "pageview" or "lead"'
+    });
 
   } catch (error) {
     logEvent('handler_error', {
       error: error.message,
-      stack: error.stack
+      stack: error.stack,
+      response_data: error.response?.data
     });
 
     return createResponse(500, {
       error: 'Internal server error',
-      message: error.message
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 }; 
